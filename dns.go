@@ -78,11 +78,11 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 		host := q.Name[0 : len(q.Name)-1]
 		containerID := strings.TrimSuffix(host, filepath.Ext(host))
 		container, _ := FindContainer(containerID)
-		responder := &DnsQueryResponder{q, container}
+		res := &DnsQueryResponder{q, container}
 
-		rrs = append(rrs, responder.buildRR("TXT")...)
-		rrs = append(rrs, responder.buildRR("A")...)
-		rrs = append(rrs, responder.buildRR("SRV")...)
+		rrs = append(rrs, res.buildRR("TXT")...)
+		rrs = append(rrs, res.buildRR("A")...)
+		rrs = append(rrs, res.buildRR("SRV")...)
 
 		m.Answer = append(m.Answer, rrs...)
 	}
