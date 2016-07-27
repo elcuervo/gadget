@@ -31,19 +31,38 @@ func (r *DnsQueryResponder) buildHdr(rtype uint16) dns.RR_Header {
 	}
 }
 
-func (r *DnsQueryResponder) buildRR(rtype string) dns.RR {
-	log.Printf("Building %s record", rtype)
-
-	var rr dns.RR
+func (r *DnsQueryResponder) buildRR(rtype string) []dns.RR {
+	var rrs []dns.RR
 
 	switch rtype {
-	case "txt":
+	case "TXT":
 		rr := new(dns.TXT)
 		rr.Hdr = r.buildHdr(dns.TypeTXT)
 		rr.Txt = r.Container.ToTXT()
+
+		rrs = append(rrs, rr)
+	case "A":
+		for _, ip := range r.Container.IPs {
+			rr := new(dns.A)
+			rr.Hdr = r.buildHdr(dns.TypeA)
+			rr.A = ip
+
+			rrs = append(rrs, rr)
+		}
+
+	case "SRV":
+		for i, service := range r.Container.Services {
+			rr := new(dns.SRV)
+			rr.Hdr = r.buildHdr(dns.TypeSRV)
+			rr.Port = uint16(service.Port)
+			rr.Weight = uint16(i)
+			rr.Target = service.Addr
+
+			rrs = append(rrs, rr)
+		}
 	}
 
-	return rr
+	return rrs
 }
 
 func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
@@ -61,27 +80,9 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 		container, _ := FindContainer(containerID)
 		responder := &DnsQueryResponder{q, container}
 
-		rrs = append(rrs, responder.buildRR("txt"))
-
-		log.Print("Building A record")
-		for _, ip := range container.IPs {
-			a := new(dns.A)
-			a.Hdr = dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
-			a.A = ip
-
-			rrs = append(rrs, a)
-		}
-
-		log.Print("Building SRV record")
-		for i, service := range container.Services {
-			srv := new(dns.SRV)
-			srv.Hdr = dns.RR_Header{q.Name, dns.TypeSRV, dns.ClassINET, 3600, 0}
-			srv.Port = uint16(service.Port)
-			srv.Weight = uint16(i)
-			srv.Target = service.Addr
-
-			rrs = append(rrs, srv)
-		}
+		rrs = append(rrs, responder.buildRR("TXT")...)
+		rrs = append(rrs, responder.buildRR("A")...)
+		rrs = append(rrs, responder.buildRR("SRV")...)
 
 		m.Answer = append(m.Answer, rrs...)
 	}
@@ -90,8 +91,6 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 }
 
 func (d *Dns) handleDns(w dns.ResponseWriter, r *dns.Msg) {
-	log.Printf("Incoming DNS request")
-
 	m := d.buildResponse(r)
 
 	if r.IsTsig() != nil {

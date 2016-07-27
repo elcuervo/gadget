@@ -1,19 +1,20 @@
 package main
 
 import (
-	"log"
 	"net"
 	"strconv"
 
 	"github.com/docker/engine-api/client"
+	"github.com/miekg/dns"
 	"golang.org/x/net/context"
 )
 
 type ContainerInfo struct {
-	ID    string
-	Image string
-	Name  string
-	Fqdn  string
+	ID     string
+	Image  string
+	Name   string
+	Status string
+	Fqdn   string
 }
 
 type ContainerService struct {
@@ -27,54 +28,45 @@ type Container struct {
 	Services []ContainerService
 }
 
-func (c *Container) ToTXT() []string {
-	var txt []string
-
-	txt = append(txt, "id="+c.Info.ID)
-	txt = append(txt, "name="+c.Info.Name)
-	txt = append(txt, "image="+c.Info.Image)
-
-	return txt
+type ContainerLookup struct {
+	docker *client.Client
 }
 
-func FindContainer(containerID string) (Container, error) {
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix://"+*socket, "v1.22", nil, defaultHeaders)
-	if err != nil {
-		panic(err)
+func (c *Container) ToTXT() []string {
+	return []string{
+		"id=" + c.Info.ID,
+		"name=" + c.Info.Name,
+		"image=" + c.Info.Image,
+		"status=" + c.Info.Status,
 	}
-	containerInspect, err := cli.ContainerInspect(context.Background(), containerID)
+}
 
-	if err != nil {
-		panic(err)
-	} else {
-		var ips []net.IP
-		var services []ContainerService
+func (l *ContainerLookup) Find(id string) (Container, error) {
+	var ips []net.IP
+	var services []ContainerService
 
-		//log.Printf("%+v", containerInspect.Config)
+	i, _ := l.docker.ContainerInspect(context.Background(), id)
 
-		info := &ContainerInfo{
-			ID:    containerInspect.ID[:12],
-			Image: containerInspect.Config.Image,
-			Name:  containerInspect.Name[1:],
-			Fqdn:  containerID + *domain,
-		}
+	info := &ContainerInfo{
+		ID:     i.ID[:12],
+		Image:  i.Config.Image,
+		Name:   i.Name[1:],
+		Status: i.State.Status,
+		Fqdn:   id + "." + dns.Fqdn(*domain),
+	}
 
-		for _, netw := range containerInspect.NetworkSettings.Networks {
-			ips = append(ips, net.ParseIP(netw.IPAddress))
-		}
+	for _, netw := range i.NetworkSettings.Networks {
+		ips = append(ips, net.ParseIP(netw.IPAddress))
+	}
 
-		for cport, hports := range containerInspect.NetworkSettings.Ports {
-			port := cport.Int()
+	for cport, hports := range i.NetworkSettings.Ports {
+		port := cport.Int()
 
-			services = append(services, ContainerService{info.Fqdn, port})
+		services = append(services, ContainerService{info.Fqdn, port})
 
-			log.Printf("%+v", hports)
-
-			if len(hports) == 0 {
-				services = append(services, ContainerService{"localhost.localdomain.", 0})
-			}
-
+		if len(hports) == 0 {
+			services = append(services, ContainerService{"localhost.localdomain.", 0})
+		} else {
 			for _, hport := range hports {
 				hostIP := net.ParseIP(hport.HostIP)
 
@@ -86,14 +78,40 @@ func FindContainer(containerID string) (Container, error) {
 
 				hosts, _ := net.LookupAddr(hostIP.String())
 				port, _ := strconv.Atoi(hport.HostPort)
+
 				services = append(services, ContainerService{hosts[0], port})
 			}
 		}
+	}
 
-		return Container{
-			Info:     info,
-			IPs:      ips,
-			Services: services,
-		}, nil
+	return Container{
+		Info:     info,
+		IPs:      ips,
+		Services: services,
+	}, nil
+}
+
+func NewContainerLookup(addr string) *ContainerLookup {
+	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
+	cli, err := client.NewClient(addr, "v1.22", nil, defaultHeaders)
+
+	if err != nil {
+		panic(err)
+	}
+
+	l := new(ContainerLookup)
+	l.docker = cli
+
+	return l
+}
+
+func FindContainer(containerID string) (Container, error) {
+	lookup := NewContainerLookup("unix://" + *socket)
+	container, err := lookup.Find(containerID)
+
+	if err != nil {
+		panic(err)
+	} else {
+		return container, nil
 	}
 }
