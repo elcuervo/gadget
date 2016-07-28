@@ -73,18 +73,24 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 	for _, q := range m.Question {
 		var rrs []dns.RR
 
-		log.Printf("Answering %s type: %d", q.Name, q.Qtype)
-
 		host := q.Name[0 : len(q.Name)-1]
 		containerID := strings.TrimSuffix(host, filepath.Ext(host))
-		container, _ := FindContainer(containerID)
-		res := &DnsQueryResponder{q, container}
+		container, err := FindContainer(containerID)
 
-		rrs = append(rrs, res.buildRR("TXT")...)
-		rrs = append(rrs, res.buildRR("A")...)
-		rrs = append(rrs, res.buildRR("SRV")...)
+		if err != nil {
+			log.Print(err)
+			continue
+		} else {
+			log.Printf("Answering %s type: %d", q.Name, q.Qtype)
 
-		m.Answer = append(m.Answer, rrs...)
+			res := &DnsQueryResponder{q, container}
+
+			rrs = append(rrs, res.buildRR("TXT")...)
+			rrs = append(rrs, res.buildRR("A")...)
+			rrs = append(rrs, res.buildRR("SRV")...)
+
+			m.Answer = append(m.Answer, rrs...)
+		}
 	}
 
 	return m

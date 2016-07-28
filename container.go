@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"strconv"
 
@@ -45,7 +46,11 @@ func (l *ContainerLookup) Find(id string) (Container, error) {
 	var ips []net.IP
 	var services []ContainerService
 
-	i, _ := l.docker.ContainerInspect(context.Background(), id)
+	i, err := l.docker.ContainerInspect(context.Background(), id)
+
+	if err != nil {
+		return Container{}, errors.New("Container not found")
+	}
 
 	info := &ContainerInfo{
 		ID:     i.ID[:12],
@@ -72,8 +77,6 @@ func (l *ContainerLookup) Find(id string) (Container, error) {
 
 				if hostIP.Equal(net.IPv4(0, 0, 0, 0)) {
 					hostIP = net.IPv4(127, 0, 0, 1)
-				} else {
-					panic("god")
 				}
 
 				hosts, _ := net.LookupAddr(hostIP.String())
@@ -110,7 +113,7 @@ func FindContainer(containerID string) (Container, error) {
 	container, err := lookup.Find(containerID)
 
 	if err != nil {
-		panic(err)
+		return Container{}, errors.New("Container " + containerID + " not found")
 	} else {
 		return container, nil
 	}
