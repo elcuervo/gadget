@@ -12,7 +12,7 @@ var socket = flag.String("socket", "/var/run/docker.sock", "Docker socket")
 func main() {
 	flag.Parse()
 
-	server := NewDnsServer(*addr, *domain)
+	server := NewDNSServer(*addr, *domain)
 
 	log.Printf("Serving %s and with FQDN: %s", *addr, *domain)
 

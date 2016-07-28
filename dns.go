@@ -12,17 +12,17 @@ import (
 	"github.com/miekg/dns"
 )
 
-type Dns struct {
+type DNS struct {
 	Domain string
 	server *dns.Server
 }
 
-type DnsQueryResponder struct {
+type DNSQueryResponder struct {
 	Question  dns.Question
 	Container Container
 }
 
-func (r *DnsQueryResponder) buildHdr(rtype uint16) dns.RR_Header {
+func (r *DNSQueryResponder) buildHdr(rtype uint16) dns.RR_Header {
 	return dns.RR_Header{
 		Name:   r.Question.Name,
 		Rrtype: rtype,
@@ -31,7 +31,7 @@ func (r *DnsQueryResponder) buildHdr(rtype uint16) dns.RR_Header {
 	}
 }
 
-func (r *DnsQueryResponder) buildRR(rtype string) []dns.RR {
+func (r *DNSQueryResponder) buildRR(rtype string) []dns.RR {
 	var rrs []dns.RR
 
 	switch rtype {
@@ -65,7 +65,7 @@ func (r *DnsQueryResponder) buildRR(rtype string) []dns.RR {
 	return rrs
 }
 
-func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
+func (d *DNS) buildResponse(r *dns.Msg) *dns.Msg {
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Compress = false
@@ -83,7 +83,7 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 		} else {
 			log.Printf("Answering %s type: %d", q.Name, q.Qtype)
 
-			res := &DnsQueryResponder{q, container}
+			res := &DNSQueryResponder{q, container}
 
 			rrs = append(rrs, res.buildRR("TXT")...)
 			rrs = append(rrs, res.buildRR("A")...)
@@ -96,7 +96,7 @@ func (d *Dns) buildResponse(r *dns.Msg) *dns.Msg {
 	return m
 }
 
-func (d *Dns) handleDns(w dns.ResponseWriter, r *dns.Msg) {
+func (d *DNS) handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m := d.buildResponse(r)
 
 	if r.IsTsig() != nil {
@@ -109,7 +109,7 @@ func (d *Dns) handleDns(w dns.ResponseWriter, r *dns.Msg) {
 
 }
 
-func (d *Dns) Wait() {
+func (d *DNS) Wait() {
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
@@ -122,20 +122,20 @@ func (d *Dns) Wait() {
 	}
 }
 
-func (d *Dns) Shutdown() {
+func (d *DNS) Shutdown() {
 	d.server.Shutdown()
 }
 
-func (d *Dns) Serve() {
+func (d *DNS) Serve() {
 	d.server.ListenAndServe()
 }
 
-func NewDnsServer(address, domain string) *Dns {
-	d := new(Dns)
+func NewDNSServer(address, domain string) *DNS {
+	d := new(DNS)
 	d.server = &dns.Server{Addr: address, Net: "udp"}
 	d.Domain = dns.Fqdn(domain)
 
-	dns.HandleFunc(d.Domain, d.handleDns)
+	dns.HandleFunc(d.Domain, d.handleDNS)
 
 	return d
 }
