@@ -1,5 +1,5 @@
 # Inspector Gadget
-_Don't worry Cief, I'm always on duty!_
+_Don't worry Chief, I'm always on duty!_
 
 ![](http://clipset.20minutos.es/wp-content/uploads/2013/10/gadget.jpg)
 
