@@ -94,27 +94,19 @@ func (l *ContainerLookup) Find(id string) (Container, error) {
 	}, nil
 }
 
-func NewContainerLookup(addr string) *ContainerLookup {
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient(addr, "v1.22", nil, defaultHeaders)
-
-	if err != nil {
-		panic(err)
-	}
-
-	l := new(ContainerLookup)
-	l.docker = cli
-
-	return l
-}
-
-func FindContainer(containerID string) (Container, error) {
-	lookup := NewContainerLookup("unix://" + *socket)
-	container, err := lookup.Find(containerID)
+func (l *ContainerLookup) FindContainer(containerID string) (Container, error) {
+	container, err := l.Find(containerID)
 
 	if err != nil {
 		return Container{}, errors.New("Container " + containerID + " not found")
 	} else {
 		return container, nil
 	}
+}
+
+func NewContainerLookup(cli *client.Client) *ContainerLookup {
+	l := new(ContainerLookup)
+	l.docker = cli
+
+	return l
 }

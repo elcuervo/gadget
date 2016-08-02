@@ -9,12 +9,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docker/engine-api/client"
 	"github.com/miekg/dns"
 )
 
 type DNS struct {
 	Domain string
+
 	server *dns.Server
+	lookup *ContainerLookup
 }
 
 type DNSQueryResponder struct {
@@ -75,7 +78,7 @@ func (d *DNS) buildResponse(r *dns.Msg) *dns.Msg {
 
 		host := q.Name[0 : len(q.Name)-1]
 		containerID := strings.TrimSuffix(host, filepath.Ext(host))
-		container, err := FindContainer(containerID)
+		container, err := d.lookup.FindContainer(containerID)
 
 		if err != nil {
 			log.Print(err)
@@ -131,9 +134,19 @@ func (d *DNS) Serve() {
 }
 
 func NewDNSServer(address, domain string) *DNS {
-	d := new(DNS)
-	d.server = &dns.Server{Addr: address, Net: "udp"}
-	d.Domain = dns.Fqdn(domain)
+	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
+	cli, err := client.NewClient("unix://"+*socket, "v1.22", nil, defaultHeaders)
+
+	if err != nil {
+		panic(err)
+	}
+
+	d := &DNS{
+		Domain: dns.Fqdn(domain),
+
+		server: &dns.Server{Addr: address, Net: "udp"},
+		lookup: NewContainerLookup(cli),
+	}
 
 	dns.HandleFunc(d.Domain, d.handleDNS)
 

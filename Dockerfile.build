@@ -1,0 +1,9 @@
+FROM alpine:3.4
+
+WORKDIR /code
+
+RUN apk --update add go
+
+VOLUME [".", "/code"]
+
+CMD ["make", "dist"]
