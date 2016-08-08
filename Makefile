@@ -19,7 +19,9 @@ container:
 	docker build -f Dockerfile -t elcuervo/gadget .
 
 create:
-	docker run
+	#docker rmi -f gadget-builder
+	docker build -t gadget-builder -f Dockerfile.build .
+	docker run gadget-builder
 
 clean:
 	@rm gadget

@@ -9,15 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/engine-api/client"
 	"github.com/miekg/dns"
 )
 
 type DNS struct {
 	Domain string
 
-	server *dns.Server
-	lookup *ContainerLookup
+	server    *dns.Server
+	container func(string) (Container, error)
 }
 
 type DNSQueryResponder struct {
@@ -68,7 +67,7 @@ func (r *DNSQueryResponder) buildRR(rtype string) []dns.RR {
 	return rrs
 }
 
-func (d *DNS) buildResponse(r *dns.Msg) *dns.Msg {
+func (d *DNS) BuildResponse(r *dns.Msg) *dns.Msg {
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Compress = false
@@ -78,7 +77,7 @@ func (d *DNS) buildResponse(r *dns.Msg) *dns.Msg {
 
 		host := q.Name[0 : len(q.Name)-1]
 		containerID := strings.TrimSuffix(host, filepath.Ext(host))
-		container, err := d.lookup.FindContainer(containerID)
+		container, err := d.container(containerID)
 
 		if err != nil {
 			log.Print(err)
@@ -99,8 +98,8 @@ func (d *DNS) buildResponse(r *dns.Msg) *dns.Msg {
 	return m
 }
 
-func (d *DNS) handleDNS(w dns.ResponseWriter, r *dns.Msg) {
-	m := d.buildResponse(r)
+func (d *DNS) HandleDNS(w dns.ResponseWriter, r *dns.Msg) {
+	m := d.BuildResponse(r)
 
 	if r.IsTsig() != nil {
 		if w.TsigStatus() == nil {
@@ -133,22 +132,17 @@ func (d *DNS) Serve() {
 	d.server.ListenAndServe()
 }
 
+func (d *DNS) ContainerLookup(fn func(string) (Container, error)) {
+	d.container = fn
+}
+
 func NewDNSServer(address, domain string) *DNS {
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix://"+*socket, "v1.22", nil, defaultHeaders)
-
-	if err != nil {
-		panic(err)
-	}
-
 	d := &DNS{
 		Domain: dns.Fqdn(domain),
-
 		server: &dns.Server{Addr: address, Net: "udp"},
-		lookup: NewContainerLookup(cli),
 	}
 
-	dns.HandleFunc(d.Domain, d.handleDNS)
+	dns.HandleFunc(d.Domain, d.HandleDNS)
 
 	return d
 }

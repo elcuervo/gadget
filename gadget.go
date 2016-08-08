@@ -13,10 +13,14 @@ func main() {
 	flag.Parse()
 
 	server := NewDNSServer(*addr, *domain)
+	lookup := NewContainerLookup(*socket)
+
+	server.ContainerLookup(lookup.FindContainer)
 
 	log.Printf("Serving %s and with FQDN: %s", *addr, *domain)
 
 	go server.Serve()
 	defer server.Shutdown()
+
 	server.Wait()
 }

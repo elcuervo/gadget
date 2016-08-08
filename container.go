@@ -5,9 +5,11 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/docker/engine-api/client"
-	"github.com/miekg/dns"
 	"golang.org/x/net/context"
+
+	"github.com/docker/engine-api/client"
+	"github.com/docker/engine-api/types"
+	"github.com/miekg/dns"
 )
 
 type ContainerInfo struct {
@@ -30,7 +32,7 @@ type Container struct {
 }
 
 type ContainerLookup struct {
-	docker *client.Client
+	Finder func(string) (types.ContainerJSON, error)
 }
 
 func (c *Container) ToTXT() []string {
@@ -46,7 +48,7 @@ func (l *ContainerLookup) Find(id string) (Container, error) {
 	var ips []net.IP
 	var services []ContainerService
 
-	i, err := l.docker.ContainerInspect(context.Background(), id)
+	i, err := l.Finder(id)
 
 	if err != nil {
 		return Container{}, errors.New("Container not found")
@@ -104,9 +106,17 @@ func (l *ContainerLookup) FindContainer(containerID string) (Container, error) {
 	}
 }
 
-func NewContainerLookup(cli *client.Client) *ContainerLookup {
-	l := new(ContainerLookup)
-	l.docker = cli
+func NewContainerLookup(socket string) *ContainerLookup {
+	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
+	cli, err := client.NewClient("unix://"+socket, "v1.22", nil, defaultHeaders)
 
-	return l
+	if err != nil {
+		panic(err)
+	}
+
+	defaultFinder := func(id string) (types.ContainerJSON, error) {
+		return cli.ContainerInspect(context.Background(), id)
+	}
+
+	return &ContainerLookup{Finder: defaultFinder}
 }
