@@ -18,6 +18,9 @@ dist:
 container:
 	docker build -f Dockerfile -t elcuervo/gadget .
 
+release:
+	docker push elcuervo/gadget
+
 create:
 	#docker rmi -f gadget-builder
 	docker build -t gadget-builder -f Dockerfile.build .
