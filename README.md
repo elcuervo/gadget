@@ -16,6 +16,12 @@ the container has exposed ports you'll see them in the `SRV` records.
 go get github.com/elcuervo/gadget
 ```
 
+Or run Docker
+
+```bash
+docker run -v /var/run/docker.sock:/var/run/docker.sock elcuervo/gadget
+```
+
 ## Configuration
 
 You have several flags to configure `gadget`.
