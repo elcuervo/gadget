@@ -22,4 +22,4 @@ RUN addgroup gadget && adduser -S -G gadget gadget
 
 EXPOSE 53
 
-#ENTRYPOINT ["gosu", "gadget", "gadget"]
+ENTRYPOINT ["gosu", "gadget", "gadget"]
